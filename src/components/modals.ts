@@ -159,10 +159,13 @@ export class OmnisearchVaultModal extends OmnisearchModal {
   constructor(plugin: OmnisearchPlugin, query?: string) {
     super(plugin)
 
-    // Selected text in the editor
-    const selectedText = plugin.app.workspace
+    // Preserve the selected text and its exact range while the modal is open.
+    const editor = plugin.app.workspace
       .getActiveViewOfType(MarkdownView)
-      ?.editor.getSelection()
+      ?.editor
+    const selectedText = editor?.getSelection()
+    const selectionFrom = editor?.getCursor('from')
+    const selectionTo = editor?.getCursor('to')
 
     plugin.searchHistory.getHistory().then(history => {
       // Previously searched query (if enabled in settings)
@@ -177,6 +180,9 @@ export class OmnisearchVaultModal extends OmnisearchModal {
           plugin,
           modal: this,
           previousQuery: query || selectedText || previous || '',
+          selectedText: selectedText || '',
+          selectionFrom,
+          selectionTo,
         },
       })
 
