@@ -1,5 +1,6 @@
 <script lang="ts">
   import { MarkdownView, Notice, Platform, TFile, debounce } from 'obsidian'
+  import type { EditorPosition } from 'obsidian'
   import { onDestroy, onMount, tick } from 'svelte'
   import InputSearch from './InputSearch.svelte'
   import ModalContainer from './ModalContainer.svelte'
@@ -32,10 +33,16 @@
   let {
     modal,
     previousQuery,
+    selectedText,
+    selectionFrom,
+    selectionTo,
     plugin,
   }: {
     modal: OmnisearchVaultModal
     previousQuery?: string | undefined
+    selectedText?: string | undefined
+    selectionFrom?: EditorPosition | undefined
+    selectionTo?: EditorPosition | undefined
     plugin: OmnisearchPlugin
   } = $props()
 
@@ -246,28 +253,42 @@
       return
     }
 
-    // Generate link
+    const hasOriginalSelection = Boolean(
+      selectedText && selectionFrom && selectionTo
+    )
+
+    // Generate link. If Omnisearch was opened from a text selection, keep that
+    // text as the link label instead of replacing it with the result title.
     let link: string
     if (file && active) {
       link = plugin.app.fileManager.generateMarkdownLink(
         file,
         active.path,
         '',
-        selectedNote.displayTitle
+        hasOriginalSelection ? selectedText : selectedNote.displayTitle
       )
     } else {
+      const displayTitle = hasOriginalSelection
+        ? selectedText
+        : selectedNote.displayTitle
       const maybeDisplayTitle =
-        selectedNote.displayTitle === '' ? '' : `|${selectedNote.displayTitle}`
+        displayTitle === '' ? '' : `|${displayTitle}`
       link = `[[${selectedNote.basename}.${getExtension(
         selectedNote.path
       )}${maybeDisplayTitle}]]`
     }
 
-    // Inject link
-    const cursor = view.editor.getCursor()
-    view.editor.replaceRange(link, cursor, cursor)
-    cursor.ch += link.length
-    view.editor.setCursor(cursor)
+    // Replace the exact text selection captured when Omnisearch was opened.
+    // Without an original selection, preserve the existing insert-at-cursor behavior.
+    if (hasOriginalSelection) {
+      view.editor.replaceRange(link, selectionFrom, selectionTo)
+      view.editor.setCursor(selectionFrom)
+    } else {
+      const cursor = view.editor.getCursor()
+      view.editor.replaceRange(link, cursor, cursor)
+      cursor.ch += link.length
+      view.editor.setCursor(cursor)
+    }
 
     modal.close()
   }
@@ -364,7 +385,7 @@
           .some(w => w.length < 3)}
         <br />
         <span style="color: var(--text-accent); font-size: small">
-          You have enabled "Simpler Search" in the settings, try to type more
+          You have enabled "Simpler Search", try to type more
           characters.
         </span>
       {/if}
